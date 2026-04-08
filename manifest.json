@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Hidden Span Remover",
+  "version": "1.0.0",
+  "description": "Removes invisible hidden span elements injected into pages",
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "permissions": ["storage"]
+}
