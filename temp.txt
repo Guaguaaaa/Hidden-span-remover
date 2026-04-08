@@ -1,8 +1,0 @@
-./
-  manifest.json
-  popup.html
-  popup.js
-  popup.css
-  background.js
-  content.js
-  icons/
