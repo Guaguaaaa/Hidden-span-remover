@@ -7,7 +7,7 @@ A Chrome extension that removes invisible hidden span elements injected into web
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/<your-username>/hiddenRemove.git
+git clone https://github.com/Guaguaaaa/Hidden-span-remover.git
 ```
 
 ### 2. Load the extension in Chrome
@@ -15,15 +15,16 @@ git clone https://github.com/<your-username>/hiddenRemove.git
 1. Open Chrome and go to `chrome://extensions`
 2. Enable **Developer mode** (toggle in the top-right corner)
 3. Click **Load unpacked**
-4. Select the cloned `hiddenRemove` folder
+4. Select the cloned `Hidden-span-remover` folder
 
 The extension will now appear in your Chrome toolbar.
 
 ### 3. Use the extension
 
 1. Navigate to any web page
-2. Click the extension icon in the toolbar
-3. Toggle **Remove hidden spans** on to activate removal on the current page
+2. **Refresh the tab** before using the extension for the first time on that page
+3. Click the extension icon in the toolbar
+4. Toggle **Remove hidden spans** on to activate removal on the current page
 
 > To pin the extension to your toolbar: click the puzzle icon next to the address bar and pin **Hidden Span Remover**.
 
