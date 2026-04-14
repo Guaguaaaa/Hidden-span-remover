@@ -4,7 +4,9 @@
 
 /**
  * Returns true if `el` is a hidden span we want to remove.
- * Matches: <span aria-hidden="true" style="color:rgba(1,1,1,0); font-size:0.0pt ...">
+ * Matches hidden spans with `aria-hidden="true"` and either:
+ * - `font-size:0.0pt`
+ * - `color:rgba(1,1,1,0)`
  *
  * We strip all whitespace from the style string before testing so that minor
  * formatting differences (spaces around colons, commas, etc.) don't matter.
@@ -20,7 +22,7 @@ function isHiddenSpan(el) {
   const hasColor    = /color:rgba\(1,1,1,0\)/.test(style);
   const hasFontSize = /font-size:0\.0pt/.test(style);
 
-  return hasColor && hasFontSize;
+  return hasColor || hasFontSize;
 }
 
 // ---------------------------------------------------------------------------
