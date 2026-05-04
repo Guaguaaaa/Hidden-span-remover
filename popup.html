@@ -7,11 +7,17 @@
 </head>
 <body>
   <div class="container">
-    <span class="label">Remove hidden spans</span>
-    <label class="switch">
-      <input type="checkbox" id="toggle" />
-      <span class="slider"></span>
-    </label>
+    <div class="row">
+      <span class="label">Remove hidden spans</span>
+      <label class="switch">
+        <input type="checkbox" id="toggle" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <button id="exportMarkdown" class="export-button" type="button">
+      Export cleaned Markdown
+    </button>
   </div>
   <script src="popup.js"></script>
 </body>

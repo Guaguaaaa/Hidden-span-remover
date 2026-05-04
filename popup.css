@@ -1,14 +1,21 @@
 body {
   margin: 0;
   font-family: sans-serif;
-  min-width: 220px;
+  min-width: 240px;
 }
 
 .container {
   display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+}
+
+.row {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px;
+  gap: 16px;
 }
 
 .label {
@@ -22,6 +29,7 @@ body {
   display: inline-block;
   width: 44px;
   height: 24px;
+  flex: 0 0 auto;
 }
 
 .switch input {
@@ -57,4 +65,19 @@ input:checked + .slider {
 
 input:checked + .slider::before {
   transform: translateX(20px);
+}
+
+.export-button {
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: #2f6feb;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 9px 10px;
+}
+
+.export-button:hover {
+  background: #255abf;
 }

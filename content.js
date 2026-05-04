@@ -19,7 +19,7 @@ function isHiddenSpan(el) {
   // Collapse all whitespace so "color: rgba(1, 1, 1, 0)" → "color:rgba(1,1,1,0)"
   const style = (el.getAttribute('style') || '').replace(/\s/g, '');
 
-  const hasColor    = /color:rgba\(1,1,1,0\)/.test(style);
+  const hasColor = /color:rgba\(1,1,1,0\)/.test(style);
   const hasFontSize = /font-size:0\.0pt/.test(style);
 
   return hasColor || hasFontSize;
@@ -29,10 +29,10 @@ function isHiddenSpan(el) {
 // Removal helpers
 // ---------------------------------------------------------------------------
 
-/** Remove every matching span already present in the document. */
-function removeExisting() {
+/** Remove every matching span already present inside `root`. */
+function removeExisting(root = document) {
   // Pre-filter with a CSS selector to avoid walking the whole DOM
-  document.querySelectorAll('span[aria-hidden="true"]').forEach(el => {
+  root.querySelectorAll('span[aria-hidden="true"]').forEach(el => {
     if (isHiddenSpan(el)) el.remove();
   });
 }
@@ -44,6 +44,9 @@ function removeExisting() {
 let observer = null;
 
 function startRemoving() {
+  // Avoid creating duplicate observers if the popup sends ON more than once.
+  if (observer) observer.disconnect();
+
   // Clean up what's already on the page
   removeExisting();
 
@@ -79,6 +82,213 @@ function stopRemoving() {
 }
 
 // ---------------------------------------------------------------------------
+// Markdown export helpers
+// ---------------------------------------------------------------------------
+
+function getExportRootClone() {
+  // Prefer the useful document body from Just the Docs pages, but fall back to
+  // semantic containers and finally the whole body for general pages.
+  const source =
+    document.querySelector('#main-content') ||
+    document.querySelector('main') ||
+    document.querySelector('article') ||
+    document.body;
+
+  const clone = source.cloneNode(true);
+
+  // Remove hidden spans from the cloned content even if the live page toggle is off.
+  removeExisting(clone);
+
+  // Drop decorative heading anchor links, scripts, styles, and SVG icons.
+  clone.querySelectorAll('.anchor-heading, script, style, svg').forEach(el => el.remove());
+
+  return clone;
+}
+
+function escapeMarkdown(text) {
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/([*_`\[\]])/g, '\\$1');
+}
+
+function normalizeText(text) {
+  return text.replace(/\s+/g, ' ');
+}
+
+function getPlainText(node) {
+  return normalizeText(node.textContent || '').trim();
+}
+
+function inlineMarkdown(node) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return escapeMarkdown(normalizeText(node.textContent || ''));
+  }
+
+  if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+  const tag = node.tagName.toLowerCase();
+  const children = Array.from(node.childNodes).map(inlineMarkdown).join('');
+
+  switch (tag) {
+    case 'br':
+      return '  \n';
+    case 'code':
+      return '`' + (node.textContent || '').replace(/`/g, '\\`') + '`';
+    case 'strong':
+    case 'b':
+      return `**${children.trim()}**`;
+    case 'em':
+    case 'i':
+      return `*${children.trim()}*`;
+    case 'a': {
+      const href = node.getAttribute('href');
+      const label = children.trim() || href || '';
+      return href ? `[${label}](${href})` : label;
+    }
+    case 'img': {
+      const alt = node.getAttribute('alt') || '';
+      const src = node.getAttribute('src') || '';
+      return src ? `![${escapeMarkdown(alt)}](${src})` : '';
+    }
+    default:
+      return children;
+  }
+}
+
+function blockMarkdown(node, listDepth = 0) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    const text = getPlainText(node);
+    return text ? escapeMarkdown(text) : '';
+  }
+
+  if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+  const tag = node.tagName.toLowerCase();
+  const childBlocks = () => Array.from(node.childNodes)
+    .map(child => blockMarkdown(child, listDepth))
+    .filter(Boolean)
+    .join('\n\n');
+
+  switch (tag) {
+    case 'h1':
+    case 'h2':
+    case 'h3':
+    case 'h4':
+    case 'h5':
+    case 'h6': {
+      const level = Number(tag.slice(1));
+      return `${'#'.repeat(level)} ${inlineMarkdown(node).trim()}`;
+    }
+    case 'p': {
+      const text = inlineMarkdown(node).trim();
+      const className = node.getAttribute('class') || '';
+      if (!text) return '';
+      if (/\b(warn|danger|hint)\b/.test(className)) {
+        return `> **${className}:** ${text}`;
+      }
+      return text;
+    }
+    case 'pre': {
+      const code = node.textContent.replace(/^\n|\n$/g, '');
+      return '```\n' + code + '\n```';
+    }
+    case 'blockquote': {
+      return childBlocks().split('\n').map(line => `> ${line}`).join('\n');
+    }
+    case 'ul':
+    case 'ol': {
+      return Array.from(node.children)
+        .filter(child => child.tagName && child.tagName.toLowerCase() === 'li')
+        .map((li, index) => listItemMarkdown(li, tag === 'ol', index + 1, listDepth))
+        .join('\n');
+    }
+    case 'table':
+      return tableMarkdown(node);
+    case 'hr':
+      return '---';
+    case 'img':
+      return inlineMarkdown(node).trim();
+    default:
+      return childBlocks();
+  }
+}
+
+function listItemMarkdown(li, ordered, index, depth) {
+  const marker = ordered ? `${index}. ` : '- ';
+  const indent = '  '.repeat(depth);
+  const nested = [];
+  const inlineParts = [];
+
+  Array.from(li.childNodes).forEach(child => {
+    if (child.nodeType === Node.ELEMENT_NODE && ['ul', 'ol'].includes(child.tagName.toLowerCase())) {
+      nested.push(blockMarkdown(child, depth + 1));
+    } else {
+      inlineParts.push(inlineMarkdown(child));
+    }
+  });
+
+  const firstLine = `${indent}${marker}${inlineParts.join('').trim()}`;
+  return [firstLine, ...nested].filter(Boolean).join('\n');
+}
+
+function tableMarkdown(table) {
+  const rows = Array.from(table.querySelectorAll('tr')).map(row =>
+    Array.from(row.children).map(cell => inlineMarkdown(cell).replace(/\|/g, '\\|').trim())
+  );
+
+  if (rows.length === 0) return '';
+
+  const columnCount = Math.max(...rows.map(row => row.length));
+  const normalizedRows = rows.map(row => {
+    while (row.length < columnCount) row.push('');
+    return row;
+  });
+
+  const header = normalizedRows[0];
+  const separator = Array(columnCount).fill('---');
+  const body = normalizedRows.slice(1);
+
+  return [header, separator, ...body]
+    .map(row => `| ${row.join(' | ')} |`)
+    .join('\n');
+}
+
+function htmlToMarkdown(root) {
+  return Array.from(root.childNodes)
+    .map(node => blockMarkdown(node))
+    .filter(Boolean)
+    .join('\n\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim() + '\n';
+}
+
+function safeFileName(name) {
+  return (name || 'cleaned-page')
+    .trim()
+    .replace(/[^a-z0-9\-_]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase() || 'cleaned-page';
+}
+
+function downloadMarkdown() {
+  const clone = getExportRootClone();
+  const markdown = htmlToMarkdown(clone);
+  const pageTitle = document.querySelector('h1')?.textContent || document.title || 'cleaned-page';
+  const filename = `${safeFileName(pageTitle)}.md`;
+
+  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// ---------------------------------------------------------------------------
 // Initialise on page load
 // ---------------------------------------------------------------------------
 
@@ -87,14 +297,20 @@ chrome.storage.local.get('enabled', ({ enabled }) => {
 });
 
 // ---------------------------------------------------------------------------
-// Listen for toggle messages from the popup
+// Listen for messages from the popup
 // ---------------------------------------------------------------------------
 
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type !== 'SET_STATE') return;
-  if (msg.enabled) {
-    startRemoving();
-  } else {
-    stopRemoving();
+  if (msg.type === 'SET_STATE') {
+    if (msg.enabled) {
+      startRemoving();
+    } else {
+      stopRemoving();
+    }
+    return;
+  }
+
+  if (msg.type === 'EXPORT_MARKDOWN') {
+    downloadMarkdown();
   }
 });
