@@ -1,4 +1,5 @@
 const toggle = document.getElementById('toggle');
+const highlightToggle = document.getElementById('highlightToggle');
 const exportMarkdownButton = document.getElementById('exportMarkdown');
 
 function sendMessageToActiveTab(message) {
@@ -10,9 +11,10 @@ function sendMessageToActiveTab(message) {
   });
 }
 
-// Read the saved state and reflect it in the toggle
-chrome.storage.local.get('enabled', ({ enabled }) => {
+// Read the saved state and reflect it in the toggles
+chrome.storage.local.get(['enabled', 'highlighted'], ({ enabled, highlighted }) => {
   toggle.checked = !!enabled;
+  highlightToggle.checked = !!highlighted;
 });
 
 // When the user flips the toggle:
@@ -23,6 +25,12 @@ toggle.addEventListener('change', () => {
 
   chrome.storage.local.set({ enabled });
   sendMessageToActiveTab({ type: 'SET_STATE', enabled });
+});
+
+highlightToggle.addEventListener('change', () => {
+  const enabled = highlightToggle.checked;
+  chrome.storage.local.set({ highlighted: enabled });
+  sendMessageToActiveTab({ type: 'SET_HIGHLIGHT', enabled });
 });
 
 // Export the current page content after removing matching hidden spans from a clone.

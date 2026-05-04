@@ -67,6 +67,10 @@ input:checked + .slider::before {
   transform: translateX(20px);
 }
 
+.highlight-switch input:checked + .slider {
+  background: #e53935;
+}
+
 .export-button {
   width: 100%;
   border: 0;

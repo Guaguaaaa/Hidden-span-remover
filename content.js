@@ -82,6 +82,71 @@ function stopRemoving() {
 }
 
 // ---------------------------------------------------------------------------
+// Highlight helpers — make hidden spans visible in red
+// ---------------------------------------------------------------------------
+
+const HIGHLIGHT_ATTR = 'data-hidden-highlight';
+
+function highlightEl(el) {
+  if (el.hasAttribute(HIGHLIGHT_ATTR)) return;
+  el.setAttribute(HIGHLIGHT_ATTR, el.getAttribute('style') || '');
+  el.style.cssText = '';
+  el.style.setProperty('color', 'red', 'important');
+  el.style.setProperty('font-size', '12pt', 'important');
+  el.style.setProperty('background', 'rgba(255,0,0,0.1)', 'important');
+  el.style.setProperty('outline', '1px solid red', 'important');
+}
+
+function highlightExisting(root = document) {
+  root.querySelectorAll('span[aria-hidden="true"]').forEach(el => {
+    if (isHiddenSpan(el)) highlightEl(el);
+  });
+}
+
+function unHighlightExisting(root = document) {
+  root.querySelectorAll(`[${HIGHLIGHT_ATTR}]`).forEach(el => {
+    const original = el.getAttribute(HIGHLIGHT_ATTR);
+    el.style.cssText = '';
+    if (original) {
+      el.setAttribute('style', original);
+    } else {
+      el.removeAttribute('style');
+    }
+    el.removeAttribute(HIGHLIGHT_ATTR);
+  });
+}
+
+let highlightObserver = null;
+
+function startHighlighting() {
+  if (highlightObserver) highlightObserver.disconnect();
+
+  highlightExisting();
+
+  highlightObserver = new MutationObserver(mutations => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+        if (isHiddenSpan(node)) { highlightEl(node); continue; }
+        node.querySelectorAll('span[aria-hidden="true"]').forEach(el => {
+          if (isHiddenSpan(el)) highlightEl(el);
+        });
+      }
+    }
+  });
+
+  highlightObserver.observe(document.body, { childList: true, subtree: true });
+}
+
+function stopHighlighting() {
+  if (highlightObserver) {
+    highlightObserver.disconnect();
+    highlightObserver = null;
+  }
+  unHighlightExisting();
+}
+
+// ---------------------------------------------------------------------------
 // Markdown export helpers
 // ---------------------------------------------------------------------------
 
@@ -292,8 +357,9 @@ function downloadMarkdown() {
 // Initialise on page load
 // ---------------------------------------------------------------------------
 
-chrome.storage.local.get('enabled', ({ enabled }) => {
+chrome.storage.local.get(['enabled', 'highlighted'], ({ enabled, highlighted }) => {
   if (enabled) startRemoving();
+  if (highlighted) startHighlighting();
 });
 
 // ---------------------------------------------------------------------------
@@ -306,6 +372,15 @@ chrome.runtime.onMessage.addListener((msg) => {
       startRemoving();
     } else {
       stopRemoving();
+    }
+    return;
+  }
+
+  if (msg.type === 'SET_HIGHLIGHT') {
+    if (msg.enabled) {
+      startHighlighting();
+    } else {
+      stopHighlighting();
     }
     return;
   }
